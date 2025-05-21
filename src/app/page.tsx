@@ -37,6 +37,43 @@ export default function Home() {
     return newPiece;
   }
 
+  const checkCollision = (piece: CurrentPiece, grid: string[][]) => {
+    const { x, y } = piece.position;
+    // check if the piece is at the bottom
+    /*if (y + piece.shape.length >= gridRef.current.length) {
+      // fix piece to grid
+      const newGrid = [...gridRef.current];
+      piece.shape.forEach((row, dy) => {
+        row.forEach((value, dx) => {
+          if (value) {
+            newGrid[y + dy][x + dx] = piece.color;
+          }
+        });
+      });
+      setGrid(newGrid);
+      setCurrentPiece(pickRandomPiece());
+      return true;
+    }*/
+  const newGrid = [...gridRef.current];
+  let collision = false;
+  piece.shape.map((row, currentY) => {
+    row.map((value, currentX) => {
+      if (value) {
+        // check if the square under the piece is colliding with the grid if the cell is not empty
+        if (
+          y + currentY + 1 >= grid.length ||
+          grid[y + currentY + 1][x + currentX] !== ""
+        ) {
+          collision = true;
+        }
+      }
+    });
+  });
+  if (collision) {
+    return true;  
+  }
+  return false;
+}
   useEffect(() => {
     gridRef.current = grid;
   }, [grid]);
@@ -49,27 +86,43 @@ export default function Home() {
       setGrid(newGrid);
 
       const random = pickRandomPiece();
-      console.log("RANDOM PIECE", random)
       setCurrentPiece(random)
 
-
-      const gameLoop = () => setInterval(() => {
-        console.log("gameLoop");
-        console.log(pieceRef.current);  
-        if (pieceRef.current) {
-          const newPiece = { ...pieceRef.current };
-          newPiece.position.y += 1;
-          console.log(newPiece)
-          if (newPiece.position.y + newPiece.shape.length > grid.length) {
-            newPiece.position.y = grid.length - newPiece.shape.length;
-            setCurrentPiece(newPiece);
+      const gameLoop = () => {
+        return setInterval(() => {
+          const piece: CurrentPiece | null = pieceRef.current;
+          if (!piece) return;
+          // check if piece is at the bottom of the grid. if it is. fix it to the grid. if its not just update the piece
+          if (checkCollision(piece, gridRef.current)) {
+            const newGrid = [...gridRef.current];
+            piece.shape.forEach((row, dy) => {
+              row.forEach((value, dx) => {
+                if (value) {
+                  newGrid[piece.position.y + dy][piece.position.x + dx] = piece.color;
+                }
+              });
+            });
+            setGrid(newGrid);
+            setCurrentPiece(pickRandomPiece());
+            return;
           }
-        }
+          setCurrentPiece((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              position: {
+                x: prev.position.x,
+                y: prev.position.y + 1,
+              },
+            };
+          });
+
+        }, 1/5);
       }
-      , 1000);
+      
       const intervalId = gameLoop();
       return () => clearInterval(intervalId);
-  }, [])
+  }, []);
 
 
   return (
