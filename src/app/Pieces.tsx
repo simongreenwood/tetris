@@ -1,26 +1,26 @@
 export const pieces = {
   "T": {
-    color: "bg-red-500",
+    color: "bg-purple-500",
     shape: [
       [1, 1, 1],
       [0, 1, 0],
     ],
   },
   "I": {
-    color: "bg-blue-500",
+    color: "bg-cyan-400",
     shape: [
       [1, 1, 1, 1],
     ],
   },
   "O": {
-    color: "bg-yellow-500",
+    color: "bg-yellow-300",
     shape: [
       [1, 1],
       [1, 1],
     ],
   },
   "L": {
-    color: "bg-green-500",
+    color: "bg-orange-400",
     shape: [
       [1, 0, 0],
       [1, 1, 1],
@@ -34,14 +34,14 @@ export const pieces = {
     ],
   },
   "S": {
-    color: "bg-cyan-500",
+    color: "bg-cyan-400",
     shape: [
       [0, 1, 1],
       [1, 1, 0],
     ],
   },
   "Z": {
-    color: "bg-orange-500",
+    color: "bg-orange-400",
     shape: [
       [1, 1, 0],
       [0, 1, 1],

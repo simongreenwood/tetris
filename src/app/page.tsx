@@ -37,43 +37,27 @@ export default function Home() {
     return newPiece;
   }
 
-  const checkCollision = (piece: CurrentPiece, grid: string[][]) => {
+  const checkCollision = (piece: CurrentPiece, grid: string[][], offset: { x: number; y: number }) => {
     const { x, y } = piece.position;
-    // check if the piece is at the bottom
-    /*if (y + piece.shape.length >= gridRef.current.length) {
-      // fix piece to grid
-      const newGrid = [...gridRef.current];
-      piece.shape.forEach((row, dy) => {
-        row.forEach((value, dx) => {
-          if (value) {
-            newGrid[y + dy][x + dx] = piece.color;
+    let collision = false;
+    piece.shape.map((row, currentY) => {
+      row.map((value, currentX) => {
+        if (value) {
+          // check if the square under the piece is colliding with the grid if the cell is not empty
+          const newY = y + currentY + offset.y;
+          const newX = x + currentX + offset.x;
+          if (
+            newY < 0 || newY >= grid.length ||
+            newX < 0 || newX >= grid[0].length ||
+            grid[newY][newX] !== ""
+          ) {
+            collision = true;
           }
-        });
-      });
-      setGrid(newGrid);
-      setCurrentPiece(pickRandomPiece());
-      return true;
-    }*/
-  const newGrid = [...gridRef.current];
-  let collision = false;
-  piece.shape.map((row, currentY) => {
-    row.map((value, currentX) => {
-      if (value) {
-        // check if the square under the piece is colliding with the grid if the cell is not empty
-        if (
-          y + currentY + 1 >= grid.length ||
-          grid[y + currentY + 1][x + currentX] !== ""
-        ) {
-          collision = true;
         }
-      }
+      });
     });
-  });
-  if (collision) {
-    return true;  
+    return collision
   }
-  return false;
-}
   useEffect(() => {
     gridRef.current = grid;
   }, [grid]);
@@ -93,7 +77,7 @@ export default function Home() {
           const piece: CurrentPiece | null = pieceRef.current;
           if (!piece) return;
           // check if piece is at the bottom of the grid. if it is. fix it to the grid. if its not just update the piece
-          if (checkCollision(piece, gridRef.current)) {
+          if (checkCollision(piece, gridRef.current, { x: 0, y: 1 })) {
             const newGrid = [...gridRef.current];
             piece.shape.forEach((row, dy) => {
               row.forEach((value, dx) => {
@@ -117,13 +101,54 @@ export default function Home() {
             };
           });
 
-        }, 1/5);
+        }, 1000/10);
       }
-      
       const intervalId = gameLoop();
       return () => clearInterval(intervalId);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const piece: CurrentPiece | null = pieceRef.current;
+      if (!piece) return;
+      const newGrid = [...gridRef.current];
+      const { x, y } = piece.position;
+      switch (event.key) {
+        case "a":
+          if (!checkCollision(piece, newGrid, { x: -1, y: 0 })) {
+            setCurrentPiece((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                position: {
+                  x: prev.position.x - 1,
+                  y: prev.position.y,
+                },
+              };
+            });
+          }
+          break;
+        case "d":
+          if (!checkCollision(piece, newGrid, { x: 1, y: 0 })) {
+            setCurrentPiece((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                position: {
+                  x: prev.position.x + 1,
+                  y: prev.position.y,
+                },
+              };
+            });
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+  
 
   return (
     <div className="items-center justify-items-center min-h-screen p-8 pb-20  font-[family-name:var(--font-geist-sans)] bg-slate-800 text-white">
