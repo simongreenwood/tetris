@@ -13,6 +13,10 @@ export default function Home() {
   const gridRef = useRef(grid);
   const pieceRef = useRef(currentPiece);
 
+  const keysPressedRef = useRef<Set<string>>(new Set());
+
+
+  
   const pickRandomPiece = (): CurrentPiece | null => {
     const g = gridRef.current;
     console.log(g)
@@ -66,30 +70,56 @@ export default function Home() {
   }, [currentPiece]);
 
   useEffect(() => {
-      const newGrid = Array.from({ length: 20 }, () => Array(10).fill(""));
-      setGrid(newGrid);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressedRef.current.add(e.key);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressedRef.current.delete(e.key);
+    };
 
-      const random = pickRandomPiece();
-      setCurrentPiece(random)
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
-      const gameLoop = () => {
-        return setInterval(() => {
-          const piece: CurrentPiece | null = pieceRef.current;
-          if (!piece) return;
-          // check if piece is at the bottom of the grid. if it is. fix it to the grid. if its not just update the piece
-          if (checkCollision(piece, gridRef.current, { x: 0, y: 1 })) {
-            const newGrid = [...gridRef.current];
-            piece.shape.forEach((row, dy) => {
-              row.forEach((value, dx) => {
-                if (value) {
-                  newGrid[piece.position.y + dy][piece.position.x + dx] = piece.color;
-                }
-              });
+  useEffect(() => {
+    const newGrid = Array.from({ length: 20 }, () => Array(10).fill(""));
+    setGrid(newGrid);
+    setCurrentPiece(pickRandomPiece());
+
+    let lastTime = performance.now();
+    const dropInterval = 100; // ms between automatic piece drops
+
+    const animationRef = { current: 0 };
+
+    const gameLoop = (now: number) => {
+      const deltaTime = now - lastTime;
+
+      if (deltaTime >= dropInterval) {
+        lastTime = now;
+
+        const piece: CurrentPiece | null = pieceRef.current;
+        if (!piece) {
+          animationRef.current = requestAnimationFrame(gameLoop);
+          return;
+        }
+
+        const currentGrid = [...gridRef.current];
+
+        if (checkCollision(piece, currentGrid, { x: 0, y: 1 })) {
+          piece.shape.forEach((row, dy) => {
+            row.forEach((value, dx) => {
+              if (value) {
+                currentGrid[piece.position.y + dy][piece.position.x + dx] = piece.color;
+              }
             });
-            setGrid(newGrid);
-            setCurrentPiece(pickRandomPiece());
-            return;
-          }
+          });
+          setGrid(currentGrid);
+          setCurrentPiece(pickRandomPiece());
+        } else {
           setCurrentPiece((prev) => {
             if (!prev) return null;
             return {
@@ -100,12 +130,18 @@ export default function Home() {
               },
             };
           });
-
-        }, 1000/10);
+        }
       }
-      const intervalId = gameLoop();
-      return () => clearInterval(intervalId);
+
+      animationRef.current = requestAnimationFrame(gameLoop);
+    };
+
+    animationRef.current = requestAnimationFrame(gameLoop);
+    return () => cancelAnimationFrame(animationRef.current);
   }, []);
+
+
+
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
