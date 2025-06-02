@@ -7,19 +7,18 @@ import { CurrentPiece, Piece } from "./Pieces";
 import { pieces } from "./Pieces";
 
 export default function Home() {
-  const [grid,setGrid] = useState<string[][]>([])
+  const [grid, setGrid] = useState<string[][]>([]);
   const [currentPiece, setCurrentPiece] = useState<CurrentPiece | null>(null);
 
   const gridRef = useRef(grid);
   const pieceRef = useRef(currentPiece);
 
   const keysPressedRef = useRef<Set<string>>(new Set());
+  const lastMoveTimeRef = useRef(performance.now());
 
-
-  
   const pickRandomPiece = (): CurrentPiece | null => {
     const g = gridRef.current;
-    console.log(g)
+    console.log(g);
     if (!g) return null;
 
     const keys = Object.keys(pieces) as Array<keyof typeof pieces>;
@@ -36,14 +35,17 @@ export default function Home() {
       position: {
         x: randomX,
         y: 0,
-      }
-    }
+      },
+    };
     return newPiece;
-  }
+  };
 
-  const checkCollision = (piece: CurrentPiece, grid: string[][], offset: { x: number; y: number }) => {
+  const checkCollision = (
+    piece: CurrentPiece,
+    grid: string[][],
+    offset: { x: number; y: number }
+  ): boolean => {
     const { x, y } = piece.position;
-    let collision = false;
     piece.shape.map((row, currentY) => {
       row.map((value, currentX) => {
         if (value) {
@@ -51,17 +53,19 @@ export default function Home() {
           const newY = y + currentY + offset.y;
           const newX = x + currentX + offset.x;
           if (
-            newY < 0 || newY >= grid.length ||
-            newX < 0 || newX >= grid[0].length ||
+            newY < 0 ||
+            newY >= grid.length ||
+            newX < 0 ||
+            newX >= grid[0].length ||
             grid[newY][newX] !== ""
           ) {
-            collision = true;
+            return true;
           }
         }
       });
     });
-    return collision
-  }
+    return false;
+  };
   useEffect(() => {
     gridRef.current = grid;
   }, [grid]);
@@ -90,16 +94,17 @@ export default function Home() {
     setGrid(newGrid);
     setCurrentPiece(pickRandomPiece());
 
-    let lastTime = performance.now();
     const dropInterval = 100; // ms between automatic piece drops
 
     const animationRef = { current: 0 };
 
+    const moveInterval = 100;
+
     const gameLoop = (now: number) => {
-      const deltaTime = now - lastTime;
+      const deltaTime = now - lastMoveTimeRef.current;
 
       if (deltaTime >= dropInterval) {
-        lastTime = now;
+        lastMoveTimeRef.current = now;
 
         const piece: CurrentPiece | null = pieceRef.current;
         if (!piece) {
@@ -112,13 +117,24 @@ export default function Home() {
         if (checkCollision(piece, currentGrid, { x: 0, y: 1 })) {
           piece.shape.forEach((row, dy) => {
             row.forEach((value, dx) => {
-              if (value) {
-                currentGrid[piece.position.y + dy][piece.position.x + dx] = piece.color;
+              const gridX = piece.position.x + dx;
+              const gridY = piece.position.y + dy;
+              if (
+                gridY >= 0 &&
+                gridY < currentGrid.length &&
+                gridX >= 0 &&
+                gridX < currentGrid[0].length &&
+                value
+              ) {
+                currentGrid[gridY][gridX] = piece.color;
               }
             });
           });
           setGrid(currentGrid);
-          setCurrentPiece(pickRandomPiece());
+          setCurrentPiece(null);
+          setTimeout(() => {
+            setCurrentPiece(pickRandomPiece());
+          }, 500);
         } else {
           setCurrentPiece((prev) => {
             if (!prev) return null;
@@ -131,6 +147,42 @@ export default function Home() {
             };
           });
         }
+        lastMoveTimeRef.current = now;
+        const keysPressed = keysPressedRef.current;
+
+        if (piece && now - lastMoveTimeRef.current >= moveInterval) {
+          const currentGrid = [...gridRef.current];
+          if (
+            keysPressed.has("a") &&
+            !checkCollision(piece, currentGrid, { x: -1, y: 0 })
+          ) {
+            setCurrentPiece((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                position: {
+                  x: prev.position.x - 1,
+                  y: prev.position.y,
+                },
+              };
+            });
+          } else if (
+            keysPressed.has("d") &&
+            !checkCollision(piece, currentGrid, { x: 1, y: 0 })
+          ) {
+            setCurrentPiece((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                position: {
+                  x: prev.position.x + 1,
+                  y: prev.position.y,
+                },
+              };
+            });
+          }
+          lastMoveTimeRef.current = now;
+        }
       }
 
       animationRef.current = requestAnimationFrame(gameLoop);
@@ -139,10 +191,7 @@ export default function Home() {
     animationRef.current = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationRef.current);
   }, []);
-
-
-
-
+  /*
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const piece: CurrentPiece | null = pieceRef.current;
@@ -179,16 +228,22 @@ export default function Home() {
           }
           break;
       }
+      keysPressedRef.current.add(event.key);
     };
 
+    const handleKeyUp = (event: KeyboardEvent) => {
+      keysPressedRef.current.delete(event.key);
+    };
+    window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-  
-
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []); */
   return (
     <div className="items-center justify-items-center min-h-screen p-8 pb-20  font-[family-name:var(--font-geist-sans)] bg-slate-800 text-white">
-      <Grid grid={grid} currentPiece={currentPiece} setGrid={setGrid}/>
+      <Grid grid={grid} currentPiece={currentPiece} setGrid={setGrid} />
     </div>
   );
 }
