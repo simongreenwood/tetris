@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Grid from "./components/Grid";
 import { CurrentPiece, Piece } from "./Pieces";
 import { pieces } from "./Pieces";
@@ -14,31 +14,33 @@ export default function Home() {
   const pieceRef = useRef(currentPiece);
 
   const keysPressedRef = useRef<Set<string>>(new Set());
-  const lastMoveTimeRef = useRef(performance.now());
+  const dropTimeRef = useRef(performance.now());
 
-  const pickRandomPiece = (): CurrentPiece | null => {
+  const autoShiftDelay = 150;
+  const autoShiftInterval = 25;
+
+  const directionRef = useRef<number | null>(0);
+  const autoShiftStartRef = useRef(performance.now());
+  const lastShiftRef = useRef(performance.now());
+
+  const pickRandomPiece = useCallback((): CurrentPiece | null => {
     const g = gridRef.current;
-    console.log(g);
     if (!g) return null;
 
     const keys = Object.keys(pieces) as Array<keyof typeof pieces>;
     const randomKey = keys[Math.floor(Math.random() * keys.length)];
     const randomPiece = pieces[randomKey];
 
-    const gridWidth = g[0]?.length || 10; // fallback in case grid is malformed
+    const gridWidth = g[0]?.length || 10;
     const pieceWidth = randomPiece.shape[0]?.length || 1;
-
     const maxX = Math.max(0, gridWidth - pieceWidth);
     const randomX = Math.floor(Math.random() * (maxX + 1));
-    const newPiece = {
+
+    return {
       ...randomPiece,
-      position: {
-        x: randomX,
-        y: 0,
-      },
+      position: { x: randomX, y: 0 },
     };
-    return newPiece;
-  };
+  }, [gridRef, pieceRef]);
 
   const checkCollision = (
     piece: CurrentPiece,
@@ -46,10 +48,11 @@ export default function Home() {
     offset: { x: number; y: number }
   ): boolean => {
     const { x, y } = piece.position;
-    piece.shape.map((row, currentY) => {
-      row.map((value, currentX) => {
-        if (value) {
-          // check if the square under the piece is colliding with the grid if the cell is not empty
+
+    for (let currentY = 0; currentY < piece.shape.length; currentY++) {
+      const row = piece.shape[currentY];
+      for (let currentX = 0; currentX < row.length; currentX++) {
+        if (row[currentX]) {
           const newY = y + currentY + offset.y;
           const newX = x + currentX + offset.x;
           if (
@@ -62,23 +65,55 @@ export default function Home() {
             return true;
           }
         }
-      });
-    });
+      }
+    }
     return false;
   };
-  useEffect(() => {
-    gridRef.current = grid;
-  }, [grid]);
-  useEffect(() => {
-    pieceRef.current = currentPiece;
-  }, [currentPiece]);
+
+  const moveSideways = useCallback((direction:number) => {
+    const piece = pieceRef.current;
+    const currentActiveGrid = gridRef.current;
+
+    if (piece && currentActiveGrid && currentActiveGrid.length > 0) {
+      const newPosition = { x: piece.position.x + direction, y: piece.position.y };
+      if (!checkCollision(piece, currentActiveGrid, { x: direction, y: 0 })) {
+        setCurrentPiece(prev => prev && ({ ...prev, position: newPosition }));
+        return true; // piece moved 
+      }
+    }
+    return false; // piece did not move
+  }, []);
+
+
+  useEffect(() => { gridRef.current = grid; }, [grid]);
+  useEffect(() => { pieceRef.current = currentPiece; }, [currentPiece]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressedRef.current.add(e.key);
+      const key = e.key.toLowerCase();
+      if (key === "a" && directionRef.current !== -1) {
+        directionRef.current = -1;
+        moveSideways(-1);
+        autoShiftStartRef.current = performance.now();
+        lastShiftRef.current = 0;
+      } else if (key === "d" && directionRef.current !== 1) {
+        directionRef.current = 1;
+        moveSideways(1);
+        autoShiftStartRef.current = performance.now();
+        lastShiftRef.current = 0;
+      }
+
+      keysPressedRef.current.add(key);
     };
+
     const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressedRef.current.delete(e.key);
+      const key = e.key.toLowerCase();
+      keysPressedRef.current.delete(key);
+
+      if ((key === "a" && directionRef.current === -1) ||
+          (key === "d" && directionRef.current === 1)) {
+        directionRef.current = null;
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -94,26 +129,36 @@ export default function Home() {
     setGrid(newGrid);
     setCurrentPiece(pickRandomPiece());
 
-    const dropInterval = 100; // ms between automatic piece drops
-
+    const dropInterval = 100;
     const animationRef = { current: 0 };
 
-    const moveInterval = 100;
-
     const gameLoop = (now: number) => {
-      const deltaTime = now - lastMoveTimeRef.current;
+      const dropDelta = now - dropTimeRef.current;
+      const piece: CurrentPiece | null = pieceRef.current;
+      if (!piece) {
+        animationRef.current = requestAnimationFrame(gameLoop);
+        return;
+      }
+      const currentGrid = [...gridRef.current];
 
-      if (deltaTime >= dropInterval) {
-        lastMoveTimeRef.current = now;
+      if (directionRef.current) {
+        const direction = directionRef.current;
+        const elapsed = now - autoShiftStartRef.current;
 
-        const piece: CurrentPiece | null = pieceRef.current;
-        if (!piece) {
-          animationRef.current = requestAnimationFrame(gameLoop);
-          return;
+        const canShift = 
+          (elapsed >= autoShiftDelay && now - lastShiftRef.current >= autoShiftInterval);
+
+        if (canShift) {
+          if (moveSideways(direction)) {
+            lastShiftRef.current = now;
+          } else {
+            directionRef.current = null; // stop moving if collision occurs
+          }
         }
+      }
 
-        const currentGrid = [...gridRef.current];
-
+      if (dropDelta >= dropInterval) {
+        dropTimeRef.current = now;
         if (checkCollision(piece, currentGrid, { x: 0, y: 1 })) {
           piece.shape.forEach((row, dy) => {
             row.forEach((value, dx) => {
@@ -136,52 +181,13 @@ export default function Home() {
             setCurrentPiece(pickRandomPiece());
           }, 500);
         } else {
-          setCurrentPiece((prev) => {
-            if (!prev) return null;
-            return {
-              ...prev,
-              position: {
-                x: prev.position.x,
-                y: prev.position.y + 1,
-              },
-            };
-          });
-        }
-        lastMoveTimeRef.current = now;
-        const keysPressed = keysPressedRef.current;
-
-        if (piece && now - lastMoveTimeRef.current >= moveInterval) {
-          const currentGrid = [...gridRef.current];
-          if (
-            keysPressed.has("a") &&
-            !checkCollision(piece, currentGrid, { x: -1, y: 0 })
-          ) {
-            setCurrentPiece((prev) => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                position: {
-                  x: prev.position.x - 1,
-                  y: prev.position.y,
-                },
-              };
-            });
-          } else if (
-            keysPressed.has("d") &&
-            !checkCollision(piece, currentGrid, { x: 1, y: 0 })
-          ) {
-            setCurrentPiece((prev) => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                position: {
-                  x: prev.position.x + 1,
-                  y: prev.position.y,
-                },
-              };
-            });
-          }
-          lastMoveTimeRef.current = now;
+          setCurrentPiece(prev => prev && ({
+            ...prev,
+            position: {
+              x: prev.position.x,
+              y: prev.position.y + 1,
+            },
+          }));
         }
       }
 
@@ -191,58 +197,9 @@ export default function Home() {
     animationRef.current = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animationRef.current);
   }, []);
-  /*
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const piece: CurrentPiece | null = pieceRef.current;
-      if (!piece) return;
-      const newGrid = [...gridRef.current];
-      const { x, y } = piece.position;
-      switch (event.key) {
-        case "a":
-          if (!checkCollision(piece, newGrid, { x: -1, y: 0 })) {
-            setCurrentPiece((prev) => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                position: {
-                  x: prev.position.x - 1,
-                  y: prev.position.y,
-                },
-              };
-            });
-          }
-          break;
-        case "d":
-          if (!checkCollision(piece, newGrid, { x: 1, y: 0 })) {
-            setCurrentPiece((prev) => {
-              if (!prev) return null;
-              return {
-                ...prev,
-                position: {
-                  x: prev.position.x + 1,
-                  y: prev.position.y,
-                },
-              };
-            });
-          }
-          break;
-      }
-      keysPressedRef.current.add(event.key);
-    };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      keysPressedRef.current.delete(event.key);
-    };
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, []); */
   return (
-    <div className="items-center justify-items-center min-h-screen p-8 pb-20  font-[family-name:var(--font-geist-sans)] bg-slate-800 text-white">
+    <div className="items-center justify-items-center min-h-screen p-8 pb-20 font-[family-name:var(--font-geist-sans)] bg-slate-800 text-white">
       <Grid grid={grid} currentPiece={currentPiece} setGrid={setGrid} />
     </div>
   );
