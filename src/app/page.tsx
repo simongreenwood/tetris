@@ -125,43 +125,53 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+  const inputLoop = setInterval(() => {
+    if (directionRef.current !== null) {
+      const now = performance.now();
+      const elapsed = now - autoShiftStartRef.current;
+
+      if (
+        elapsed >= autoShiftDelay &&
+        now - lastShiftRef.current >= autoShiftInterval
+      ) {
+        if (moveSideways(directionRef.current)) {
+          lastShiftRef.current = now;
+        } else {
+          directionRef.current = null;
+        }
+      }
+    }
+  }, 16); // ~60 FPS
+
+  return () => clearInterval(inputLoop);
+}, []);
+
+  useEffect(() => {
     const newGrid = Array.from({ length: 20 }, () => Array(10).fill(""));
     setGrid(newGrid);
     setCurrentPiece(pickRandomPiece());
 
-    const dropInterval = 100;
+    const dropInterval = 500;
     const animationRef = { current: 0 };
 
     const gameLoop = (now: number) => {
+      const grid = gridRef.current;
+      const piece = pieceRef.current;
       const dropDelta = now - dropTimeRef.current;
-      const piece: CurrentPiece | null = pieceRef.current;
+
       if (!piece) {
         animationRef.current = requestAnimationFrame(gameLoop);
         return;
       }
-      const currentGrid = [...gridRef.current];
+      const currentGrid = gridRef.current.map(row => [...row]);
 
-      if (directionRef.current) {
-        const direction = directionRef.current;
-        const elapsed = now - autoShiftStartRef.current;
-
-        const canShift = 
-          (elapsed >= autoShiftDelay && now - lastShiftRef.current >= autoShiftInterval);
-
-        if (canShift) {
-          if (moveSideways(direction)) {
-            lastShiftRef.current = now;
-          } else {
-            directionRef.current = null; // stop moving if collision occurs
-          }
-        }
-      }
 
       if (dropDelta >= dropInterval) {
         dropTimeRef.current = now;
         if (checkCollision(piece, currentGrid, { x: 0, y: 1 })) {
           piece.shape.forEach((row, dy) => {
             row.forEach((value, dx) => {
+              if (!value) return; // Skip empty cells
               const gridX = piece.position.x + dx;
               const gridY = piece.position.y + dy;
               if (
