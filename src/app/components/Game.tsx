@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { colors, Piece, pieces } from "../piecedata";
+import { colors, ghostColors, Piece, pieces } from "../piecedata";
 
 const rotate = (shape: number[][]): number[][] => {
   const rotated = shape[0].map((_, index) =>
@@ -44,6 +44,10 @@ export default function Game() {
   const [pieceQueue, setPieceQueue] = useState<Piece[]>([]);
   const [isLocked, setIsLocked] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [ghostPosition, setGhostPosition] = useState({ x: 0, y: 0 });
+
+  const [heldPiece, setHeldPiece] = useState<Piece | null>(null);
+  const [canHold, setCanHold] = useState(true);
 
   useEffect(() => {
     const shuffled = shuffle([...pieces]);
@@ -97,22 +101,25 @@ export default function Game() {
     );
   }, [board, currentPiece, currentPiecePosition]);
 
-  const lockPiece = useCallback(() => {
-    setBoard((prevBoard) => {
-      const newBoard = prevBoard.map((row) => [...row]);
-      const { x, y } = currentPieceRef.current.position;
-      const currentPiece = currentPieceRef.current.piece;
+  const lockPiece = useCallback(
+    (piece?: Piece, position?: { x: number; y: number }) => {
+      setBoard((prevBoard) => {
+        const newBoard = prevBoard.map((row) => [...row]);
+        const { x, y } = position || currentPieceRef.current.position;
+        const currentPiece = piece || currentPieceRef.current.piece;
 
-      currentPiece.shape.forEach((row, rowIndex) => {
-        row.forEach((cell, colIndex) => {
-          if (cell === 1) {
-            newBoard[y + rowIndex][x + colIndex] = currentPiece.color;
-          }
+        currentPiece.shape.forEach((row, rowIndex) => {
+          row.forEach((cell, colIndex) => {
+            if (cell === 1) {
+              newBoard[y + rowIndex][x + colIndex] = currentPiece.color;
+            }
+          });
         });
+        return newBoard;
       });
-      return newBoard;
-    });
-  }, [setBoard]);
+    },
+    [setBoard]
+  );
   const checkCollision = useCallback(
     (pieceShape: number[][], position: { x: number; y: number }): boolean => {
       return pieceShape.every((row, rowIndex) =>
@@ -134,7 +141,20 @@ export default function Game() {
     [board]
   );
 
+  useEffect(() => {
+    let dropY = currentPiecePosition.y;
+    while (
+      checkCollision(currentPiece.shape, {
+        x: currentPiecePosition.x,
+        y: dropY + 1,
+      })
+    ) {
+      dropY++;
+    }
+    setGhostPosition({ x: currentPiecePosition.x, y: dropY });
+  }, [currentPiece, currentPiecePosition, checkCollision]);
   const newCurrentPiece = useCallback(() => {
+    setCanHold(true);
     const nextPiece = pieceQueue[0] || pieces[0];
     const startPos = { x: 4, y: 0 };
     if (!checkCollision(nextPiece.shape, startPos)) {
@@ -262,7 +282,42 @@ export default function Game() {
         }
       }
       if (e.key === "ArrowDown" || e.key === "s") {
+        if (canMoveDown()) {
+          setScore((prevScore) => prevScore + 1);
+        }
         pieceFall();
+      }
+      if (e.key === " ") {
+        e.preventDefault();
+        const distance = ghostPosition.y - currentPiecePosition.y;
+        if (distance > 0) {
+          setScore((prevScore) => prevScore + distance * 2);
+        }
+        if (lockTimeoutRef.current) {
+          clearTimeout(lockTimeoutRef.current);
+          lockTimeoutRef.current = null;
+        }
+        lockPiece(currentPiece, ghostPosition);
+        setIsLocked(true);
+        return;
+      }
+
+      if (e.key === "Shift" || e.key === "c") {
+        if (canHold) {
+          setCanHold(false);
+          if (heldPiece) {
+            const temp = heldPiece;
+            setHeldPiece(currentPiece);
+            setCurrentPiece(temp);
+            setCurrentPiecePosition({ x: 4, y: 0 });
+          } else {
+            setHeldPiece(currentPiece);
+            const nextPiece = pieceQueue[0] || pieces[0];
+            setCurrentPiece(nextPiece);
+            setCurrentPiecePosition({ x: 4, y: 0 });
+            setPieceQueue((prevQueue) => prevQueue.slice(1));
+          }
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -285,6 +340,10 @@ export default function Game() {
     lockPiece,
     newCurrentPiece,
     gameOver,
+    ghostPosition,
+    canMoveDown,
+    canHold,
+    heldPiece,
   ]);
 
   const getCellColor = (rowIndex: number, colIndex: number) => {
@@ -294,6 +353,14 @@ export default function Game() {
       ] === 1
     ) {
       return colors[currentPiece.color];
+    }
+
+    if (
+      currentPiece.shape[rowIndex - ghostPosition.y]?.[
+        colIndex - ghostPosition.x
+      ] === 1
+    ) {
+      return ghostColors[currentPiece.color];
     }
     return colors[board[rowIndex][colIndex] || 0];
   };
@@ -320,6 +387,29 @@ export default function Game() {
         </div>
       </div>
       <div className="flex flex-col gap-2 ">
+        <h2 className="text-2xl text-white mb-2 ">Hold</h2>
+        <div className="bg-gray-800 rounded-lg p-2">
+          {heldPiece ? (
+            <div className="p-2 w-[9.375rem] rounded-lg grid gap-0.5 py-4 ">
+              {heldPiece.shape.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex gap-0.5">
+                  {row.map((cell, colIndex) => (
+                    <div
+                      key={colIndex}
+                      className={`w-8 h-8 ${
+                        cell === 1 ? colors[heldPiece.color] : "bg-transparent"
+                      }`}
+                    ></div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="w-[9.375rem] h-[9.375rem] flex items-center justify-center text-gray-500">
+              Empty
+            </div>
+          )}
+        </div>
         <h2 className="text-2xl text-white mb-2 ">Next</h2>
         <div className="bg-gray-800 rounded-lg p-2">
           {pieceQueue.slice(0, 3).map((piece, index) => (

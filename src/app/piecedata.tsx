@@ -57,6 +57,18 @@ export const colors = [
   "bg-green-400", // S
   "bg-red-400", // Z
 ];
+
+export const ghostColors = [
+  "bg-gray-900",
+  "border bg-gray-900 border-purple-800",
+  "border bg-gray-900 border-cyan-700",
+  "border bg-gray-900 border-yellow-700",
+  "border bg-gray-900 border-orange-800",
+  "border bg-gray-900 border-blue-800",
+  "border bg-gray-900 border-green-700",
+  "border bg-gray-900 border-red-700",
+];
+
 export type Piece = {
   color: number;
   shape: number[][];
