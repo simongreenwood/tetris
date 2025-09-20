@@ -1,55 +1,64 @@
-export const pieces = {
-  "T": {
-    color: "bg-purple-500",
+export const pieces = [
+  {
+    color: 1, // T
     shape: [
       [1, 1, 1],
       [0, 1, 0],
     ],
   },
-  "I": {
-    color: "bg-cyan-400",
-    shape: [
-      [1, 1, 1, 1],
-    ],
+  {
+    color: 2, // I
+    shape: [[1, 1, 1, 1]],
   },
-  "O": {
-    color: "bg-yellow-300",
+  {
+    color: 3, // O
     shape: [
       [1, 1],
       [1, 1],
     ],
   },
-  "L": {
-    color: "bg-orange-400",
+  {
+    color: 4, // L
     shape: [
       [1, 0, 0],
       [1, 1, 1],
     ],
   },
-  "J": {
-    color: "bg-purple-500",
+  {
+    color: 5, // J
     shape: [
       [0, 0, 1],
       [1, 1, 1],
     ],
   },
-  "S": {
-    color: "bg-cyan-400",
+  {
+    color: 6, // S
     shape: [
       [0, 1, 1],
       [1, 1, 0],
     ],
   },
-  "Z": {
-    color: "bg-orange-400",
+  {
+    color: 7, // Z
     shape: [
       [1, 1, 0],
       [0, 1, 1],
     ],
-  }
-};
+  },
+];
+
+export const colors = [
+  "bg-gray-900", // background/empty color
+  "bg-purple-500", // T
+  "bg-cyan-400", // I
+  "bg-yellow-400", // O
+  "bg-orange-500", // L
+  "bg-blue-500", // J
+  "bg-green-400", // S
+  "bg-red-400", // Z
+];
 export type Piece = {
-  color: string;  
+  color: number;
   shape: number[][];
 };
 
