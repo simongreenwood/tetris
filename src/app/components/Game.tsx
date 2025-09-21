@@ -1,6 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { colors, ghostColors, Piece, pieces } from "../piecedata";
+import GameOver from "./GameOver";
+import Start from "./Start";
+import { handleGameOver } from "../actions";
 
 const rotate = (shape: number[][]): number[][] => {
   const rotated = shape[0].map((_, index) =>
@@ -44,6 +47,7 @@ export default function Game() {
   const [pieceQueue, setPieceQueue] = useState<Piece[]>([]);
   const [isLocked, setIsLocked] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [started, setStarted] = useState(false);
   const [ghostPosition, setGhostPosition] = useState({ x: 0, y: 0 });
 
   const [heldPiece, setHeldPiece] = useState<Piece | null>(null);
@@ -201,10 +205,6 @@ export default function Game() {
   }, [isLocked, newCurrentPiece]);
 
   useEffect(() => {
-    if (gameOver) {
-      console.log("Game Over");
-      return;
-    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft" || e.key === "a") {
         // check if can move left
@@ -344,6 +344,7 @@ export default function Game() {
     canMoveDown,
     canHold,
     heldPiece,
+    pieceQueue,
   ]);
 
   const getCellColor = (rowIndex: number, colIndex: number) => {
@@ -365,74 +366,104 @@ export default function Game() {
     return colors[board[rowIndex][colIndex] || 0];
   };
 
+  const resetGame = useCallback(() => {
+    setBoard(Array.from({ length: 20 }, () => Array(10).fill(0)));
+    setCurrentPiecePosition({ x: 4, y: 0 });
+    const shuffled = shuffle([...pieces]);
+    setCurrentPiece(shuffled[0]);
+    setPieceQueue(shuffled.slice(1));
+    setScore(0);
+    setLevel(1);
+    setLinesCleared(0);
+    setIsLocked(false);
+    setGameOver(false);
+    setHeldPiece(null);
+    setCanHold(true);
+  }, []);
+
   return (
     <div className="flex flex-row gap-10">
-      <div className="flex flex-col items-center justify-center">
-        <h1 className="text-5xl mb-4 text-white">{score}</h1>
-        <div className="grid grid-rows-20 grid-cols-10 gap-0.5 bg-gray-800 p-2">
-          {board.map((row, rowIndex) =>
-            row.map((_, colIndex) => {
-              return (
-                <div
-                  key={`${rowIndex}-${colIndex}`}
-                  className={`w-8 h-8 ${getCellColor(rowIndex, colIndex)}`}
-                ></div>
-              );
-            })
-          )}
-        </div>
-        <div className="text-white mt-4 flex justify-between w-64">
-          <div>Level: {level}</div>
-          <div>Lines: {linesCleared}</div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2 ">
-        <h2 className="text-2xl text-white mb-2 ">Hold</h2>
-        <div className="bg-gray-800 rounded-lg p-2">
-          {heldPiece ? (
-            <div className="p-2 w-[9.375rem] rounded-lg grid gap-0.5 py-4 ">
-              {heldPiece.shape.map((row, rowIndex) => (
-                <div key={rowIndex} className="flex gap-0.5">
-                  {row.map((cell, colIndex) => (
-                    <div
-                      key={colIndex}
-                      className={`w-8 h-8 ${
-                        cell === 1 ? colors[heldPiece.color] : "bg-transparent"
-                      }`}
-                    ></div>
-                  ))}
-                </div>
-              ))}
+      {!started && <Start startGame={() => setStarted(true)} />}
+      {gameOver && <GameOver score={score} restartGame={resetGame} />}
+      {started && !gameOver && (
+        <div className="flex flex-col items-center justify-center">
+          <div className="flex flex-row gap-4 mb-4">
+            <div className="flex flex-col items-center">
+              <h1 className="text-5xl mb-4 text-white">{score}</h1>
+              <div className="grid grid-rows-20 grid-cols-10 gap-0.5 bg-gray-800 p-2">
+                {board.map((row, rowIndex) =>
+                  row.map((_, colIndex) => {
+                    return (
+                      <div
+                        key={`${rowIndex}-${colIndex}`}
+                        className={`w-8 h-8 ${getCellColor(
+                          rowIndex,
+                          colIndex
+                        )}`}
+                      ></div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="text-white mt-4 flex justify-between w-64">
+                <div>Level: {level}</div>
+                <div>Lines: {linesCleared}</div>
+              </div>
             </div>
-          ) : (
-            <div className="w-[9.375rem] h-[9.375rem] flex items-center justify-center text-gray-500">
-              Empty
+            <div className="flex flex-col gap-2 ">
+              <h2 className="text-2xl text-white mb-2 ">Hold</h2>
+              <div className="bg-gray-800 rounded-lg p-2">
+                {heldPiece ? (
+                  <div className="p-2 w-[9.375rem] rounded-lg grid gap-0.5 py-4 ">
+                    {heldPiece.shape.map((row, rowIndex) => (
+                      <div key={rowIndex} className="flex gap-0.5">
+                        {row.map((cell, colIndex) => (
+                          <div
+                            key={colIndex}
+                            className={`w-8 h-8 ${
+                              cell === 1
+                                ? colors[heldPiece.color]
+                                : "bg-transparent"
+                            }`}
+                          ></div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="w-[9.375rem] h-[9.375rem] flex items-center justify-center text-gray-500">
+                    Empty
+                  </div>
+                )}
+              </div>
+              <h2 className="text-2xl text-white mb-2 ">Next</h2>
+              <div className="bg-gray-800 rounded-lg p-2">
+                {pieceQueue.slice(0, 3).map((piece, index) => (
+                  <div
+                    key={index}
+                    className="p-2 w-[9.375rem] h-[6.125rem] rounded-lg grid gap-0.5 py-4 "
+                  >
+                    {piece.shape.map((row, rowIndex) => (
+                      <div key={rowIndex} className="flex gap-0.5">
+                        {row.map((cell, colIndex) => (
+                          <div
+                            key={colIndex}
+                            className={`w-8 h-8 ${
+                              cell === 1
+                                ? colors[piece.color]
+                                : "bg-transparent"
+                            }`}
+                          ></div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
+          </div>
         </div>
-        <h2 className="text-2xl text-white mb-2 ">Next</h2>
-        <div className="bg-gray-800 rounded-lg p-2">
-          {pieceQueue.slice(0, 3).map((piece, index) => (
-            <div
-              key={index}
-              className="p-2 w-[9.375rem] rounded-lg grid gap-0.5 py-4 "
-            >
-              {piece.shape.map((row, rowIndex) => (
-                <div key={rowIndex} className="flex gap-0.5">
-                  {row.map((cell, colIndex) => (
-                    <div
-                      key={colIndex}
-                      className={`w-8 h-8 ${
-                        cell === 1 ? colors[piece.color] : "bg-transparent"
-                      }`}
-                    ></div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
