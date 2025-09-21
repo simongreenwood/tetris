@@ -145,6 +145,9 @@ export default function Game() {
   );
 
   useEffect(() => {
+    if (!started || gameOver) {
+      return;
+    }
     let dropY = currentPiecePosition.y;
     while (
       checkCollision(currentPiece.shape, {
@@ -155,7 +158,7 @@ export default function Game() {
       dropY++;
     }
     setGhostPosition({ x: currentPiecePosition.x, y: dropY });
-  }, [currentPiece, currentPiecePosition, checkCollision]);
+  }, [currentPiece, currentPiecePosition, checkCollision, started, gameOver]);
   const newCurrentPiece = useCallback(() => {
     setCanHold(true);
     const nextPiece = pieceQueue[0] || pieces[0];
@@ -204,6 +207,9 @@ export default function Game() {
   }, [isLocked, newCurrentPiece]);
 
   useEffect(() => {
+    if (!started || gameOver) {
+      return;
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft" || e.key === "a") {
         // check if can move left
@@ -344,6 +350,7 @@ export default function Game() {
     canHold,
     heldPiece,
     pieceQueue,
+    started,
   ]);
 
   const getCellColor = (rowIndex: number, colIndex: number) => {
