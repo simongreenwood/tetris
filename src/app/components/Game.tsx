@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { colors, ghostColors, Piece, pieces } from "../piecedata";
 import GameOver from "./GameOver";
 import Start from "./Start";
-import { handleGameOver } from "../actions";
 
 const rotate = (shape: number[][]): number[][] => {
   const rotated = shape[0].map((_, index) =>
